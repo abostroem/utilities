@@ -70,12 +70,12 @@ def test_full_bins():
     binned_array1 = bin_data(test_arr, bin_size = 10)
     assert (binned_array1 == np.arange(45, 1000, 100)).all(), 'failed test on full bins'
 
-def test_incomplete_last_bin()
+def test_incomplete_last_bin():
     binned_array1 = bin_data(test_arr, bin_size = 10)
     binned_array2 = bin_data(test_arr, bin_size = 15)
     assert (binned_array2 == np.array([105, 330, 555, 780, 1005, 1230, 945])).all(), 'failed test on last bin not being full'
 def test_premade_bins():
-    bins = np.arange(0, 101, 10)
+    bins = np.arange(0, 101, 10):
     binned_array1 = bin_data(test_arr, bin_size = 10)
     binned_array3 = bin_data(test_arr, bins = bins)
     assert (binned_array3 == binned_array1).all(), 'bins not functioning as intended'
