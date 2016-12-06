@@ -28,8 +28,6 @@ def plot_multiple_spectra(file_list, xcol='WAVELENGTH', ycol='FLUX', ax=None, co
             scale1 = np.sum(ofile[1].data[ycol])
             offset = separation*np.max(ofile[1].data[ycol])
         scale2 = np.sum(ofile[1].data[ycol])
-        l1=ax.plot(ofile[1].data[xcol], ofile[1].data[ycol]*scale1/scale2+offset*indx)
-        if len(colors)>0:
-            l1.set_color(colors[indx])
+        l1=ax.plot(ofile[1].data[xcol], ofile[1].data[ycol]*scale1/scale2+offset*indx, color = colors[indx])
     return ax
     
