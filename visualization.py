@@ -2,6 +2,7 @@ from astropy.visualization import ZScaleInterval
 from astropy.io import fits
 from matplotlib import pyplot
 import matplotlib
+import numpy as np
 
 
 def zscale(img):
