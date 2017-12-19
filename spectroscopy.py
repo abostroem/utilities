@@ -53,28 +53,54 @@ def bin_data(data_arr, bin_size=None, bins=[], sum=False, median=False):
         return np.array(binned_array)
         
 def calc_wavelength(header, pixels):
-    assert header['CTYPE1'] == 'LINEAR'
+    if ('CTYPE1' in header.keys()) and (len(header['CTYPE1'])>1):
+        assert header['CTYPE1'] == 'LINEAR', 'Attempting to apply a linear solution to non-linear parameters'
+    else:
+        print('WARNING: No solution type specified, assuming linear')
     CRVAL1 = header['CRVAL1']
-    CRPIX1 = header['CRPIX1']
-    CD1_1 = header['CD1_1']
+    if 'CRPIX1' in header.keys():
+        CRPIX1 = header['CRPIX1']
+    else:
+        CRPIX1 = 0
+    try:
+        CD1_1 = header['CD1_1']
+    except KeyError:
+        CD1_1 = header['CDELT1']
     
     wavelength = CRVAL1 + CD1_1*(pixels - CRPIX1)
     return wavelength
 
-
+def apply_redshift(wl, redshift, redden=False):
+    '''
+    Redden or deredden a wavelength (array) with a given redshift
+    
+    Inputs:
+        wl: wavelength (can be single value or array)
+        redshift: redshift value
+        redden: If False, code will calculate rest wavelength assuming input is observed
+                If True, code will calculate observed wavelength assuming input is rest
+    '''
+    if redden is False:
+        new_wl = wl/(1+redshift)
+    elif redden is True:
+        new_wl = wl * (1+redshift)
+    return new_wl
+    
 ############################
 #Tests
 ############################
 def test_full_bins():                
     test_arr = np.arange(100)
-    binned_array1 = bin_data(test_arr, bin_size = 10)
+    binned_array1 = bin_data(test_arr, bin_size = 10, sum=True)
     assert (binned_array1 == np.arange(45, 1000, 100)).all(), 'failed test on full bins'
 
 def test_incomplete_last_bin():
-    binned_array1 = bin_data(test_arr, bin_size = 10)
-    binned_array2 = bin_data(test_arr, bin_size = 15)
+    test_arr = np.arange(100)
+    binned_array2 = bin_data(test_arr, bin_size = 15, sum=True)
     assert (binned_array2 == np.array([105, 330, 555, 780, 1005, 1230, 945])).all(), 'failed test on last bin not being full'
+
 def test_premade_bins():
+    test_arr = np.arange(100)
     bins = np.arange(0, 101, 10)
     binned_array1 = bin_data(test_arr, bin_size = 10)
     binned_array3 = bin_data(test_arr, bins = bins)
