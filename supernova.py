@@ -70,11 +70,17 @@ class LightCurve2(object):
     def __init__(self, name):
         self.name=name
         config_dict = database_config(os.path.join(CONFIG_DIR, 'configure'))
-        self.db = pymysql.connect(user=config_dict['mysqluser'], 
-                     host=config_dict['hostname'], 
-                     password=config_dict['mysqlpasswd'],
-                     database=config_dict['database'],
-                    port=int(config_dict['port']))
+        if 'port' in config_dict.keys():
+            self.db = pymysql.connect(user=config_dict['mysqluser'], 
+                         host=config_dict['hostname'], 
+                         password=config_dict['mysqlpasswd'],
+                         database=config_dict['database'],
+                        port=int(config_dict['port']))
+        else:
+            self.db = pymysql.connect(user=config_dict['mysqluser'], 
+                         host=config_dict['hostname'], 
+                         password=config_dict['mysqlpasswd'],
+                         database=config_dict['database'])
         self.cursor = self.db.cursor()
         self.id = self.get_sn_id()
         self.cursor.execute('SELECT * FROM idsupernovae WHERE id = {}'.format(self.id))
