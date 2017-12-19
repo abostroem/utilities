@@ -10,8 +10,8 @@ def zscale(img):
     vmin, vmax = zscale.get_limits(img)
     return vmin, vmax
     
-def make_color_wheel(obj_list, cmap='rainbow'):
-    cmap = matplotlib.cm.get_cmap('gist_rainbow')
+def make_color_wheel(obj_list, cmap='gist_rainbow'):
+    cmap = matplotlib.cm.get_cmap(cmap)
     obj_color_list = cmap(np.linspace(0, 1, len(obj_list)))
     return obj_color_list
     
