@@ -75,28 +75,30 @@ class LightCurve2(object):
                          host=config_dict['hostname'], 
                          password=config_dict['mysqlpasswd'],
                          database=config_dict['database'],
-                        port=int(config_dict['port']))
+                        port=int(config_dict['port']),
+                        cursorclass=pymysql.cursors.DictCursor)
         else:
             self.db = pymysql.connect(user=config_dict['mysqluser'], 
                          host=config_dict['hostname'], 
                          password=config_dict['mysqlpasswd'],
-                         database=config_dict['database'])
+                         database=config_dict['database'],
+                         cursorclass=pymysql.cursors.DictCursor)
         self.cursor = self.db.cursor()
         self.id = self.get_sn_id()
         self.cursor.execute('SELECT * FROM idsupernovae WHERE id = {}'.format(self.id))
         result = self.cursor.fetchone()
-        self.ra = result[1]
-        self.dec = result[2]
-        self.type = result[3] #TODO - update this to look at the type table and make a human readable type
-        self.dist_mod = result[10]
-        self.dist_mod_err = result[11]
-        self.ebv_mw = result[13]
-        self.ebv_mw_err = result[14]
-        self.ebv_host = result[15] 
-        self.ebv_host_err = result[16]
-        self.quality = result[17]
-        self.jdexpl = result[18]
-        self.jdexpl_err = result[19]
+        self.ra = result['ra0']
+        self.dec = result['dec0']
+        self.type = result['sntype'] #TODO - update this to look at the type table and make a human readable type
+        self.dist_mod = result['mu']
+        self.dist_mod_err = result['muerr']
+        self.ebv_mw = result['ebvg']
+        self.ebv_mw_err = result['ebvgerr']
+        self.ebv_host = result['ebvi'] 
+        self.ebv_host_err = result['ebvierr']
+        self.quality = result['quality']
+        self.jdexpl = result['jdexpl']
+        self.jdexpl_err = result['jdexplerr']
         self.jd = {}
         self.apparent_mag = {}
         self.apparent_mag_err = {}
@@ -111,7 +113,7 @@ class LightCurve2(object):
     def get_sn_id(self):
         self.cursor.execute('SELECT targetid FROM supernovanames WHERE name = {}'.format('"{}"'.format(self.name)))
         result = self.cursor.fetchone()
-        return result[0]
+        return result['targetid']
  
     def get_photometry(self, band='all'):
         '''
@@ -120,7 +122,7 @@ class LightCurve2(object):
         if band == 'all':
             self.cursor.execute("SELECT DISTINCT BINARY(filter) FROM photometry WHERE targetid={}".format(self.id))
             results = self.cursor.fetchall()
-            bands = [str(iband[0]).strip('b').strip("'") for iband in results]
+            bands = [str(iband['BINARY(filter)']).strip('b').strip("'") for iband in results]
 
         elif len(band)==1: #Single filter
             bands = [band]
@@ -133,9 +135,9 @@ class LightCurve2(object):
             mag = []
             mag_err = []
             for irow in results:
-                jd.append(float(irow[0]))
-                mag.append(float(irow[1]))
-                mag_err.append(float(irow[2]))
+                jd.append(float(irow['jd']))
+                mag.append(float(irow['mag']))
+                mag_err.append(float(irow['magerr']))
             self.jd[ifilter] = np.array(jd)
             self.apparent_mag[ifilter] = np.array(mag)
             self.apparent_mag_err[ifilter] = np.array(mag_err)
@@ -173,6 +175,8 @@ class LightCurve2(object):
         self.cursor.execute('SELECT * FROM snslope WHERE  targetid={} AND \
                                                          slopetype="{}" AND \
                                                          BINARY filter="{}"'.format(self.id, slope_type, band))
+        print('FIX RESULT TO LOOK AT DICTIONARY')
+        import pdb; pdb.set_trace()
         result = self.cursor.fetchone()
         if slope_type == 's1':
             self.slopes['s1'][band] = result[2]
