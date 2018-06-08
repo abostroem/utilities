@@ -1,6 +1,22 @@
+from collections import namedtuple
+
 from astropy import convolution
 import numpy as np
 import math
+
+import extinction
+
+
+#Like a light weight class with attributes wavelength and flux
+#spectrum1d = namedtuple("spectrum1d", ['wave', 'flux'])
+class spectrum1d(object):
+    def __init__(self, wave, flux, error=None):
+        self.wave = wave
+        self.flux = flux
+        self.error = error
+        
+    
+
 
 def degrade_resolution(flux, disp_in, disp_out):
     '''
@@ -80,11 +96,51 @@ def apply_redshift(wl, redshift, redden=False):
         redden: If False, code will calculate rest wavelength assuming input is observed
                 If True, code will calculate observed wavelength assuming input is rest
     '''
+    if isinstance(wl, list):
+        wl = np.array(wl)
     if redden is False:
         new_wl = wl/(1+redshift)
     elif redden is True:
         new_wl = wl * (1+redshift)
     return new_wl
+    
+def scale_spectra(spec1, spec2, wlmin = None, wlmax=None):
+    '''
+    Scale spec1 to spec2 by integrating from wlmin to wlmax and using
+    the area as a scaling factor
+    Inputs:
+        spec1, spec2: two spectrum1d objects with attributes wave and flux
+        wlmin: shortest wavelength to be used in scaling
+        wlmax: longest wavelength to be used in scaling
+    Outputs:
+        spec1: spec1d object with scaled flux
+    '''    
+    if wlmin is None:
+        wlmin = min(spec1.wave.min(), spec2.wave.min())
+    if wlmax is None:
+        wlmax = max(spec1.wave.max(), spec2.wave.max())
+    windx_1 = (spec1.wave >= wlmin) &  (spec1.wave <= wlmax)
+    windx_2 = (spec2.wave >= wlmin) & (spec2.wave <= wlmax)
+    delta_wl1 = np.mean(spec1.wave[1:] - spec1.wave[:-1])
+    delta_wl2 = np.mean(spec2.wave[1:] - spec2.wave[:-1])
+    area1 = np.sum(spec1.flux[windx_1])*delta_wl1
+    area2 = np.sum(spec2.flux[windx_2])*delta_wl2
+    spec1 = spectrum1d(spec1.wave, spec1.flux/area1*area2)
+    return spec1
+    
+def correct_for_galactic_extinction(spec, E_BV, R_V=3.1):
+    '''
+    Correct flux for galactic (Milky Way) extinction using a Cardelli law
+    Inputs:
+        spec: spectrum1d object to be corrected (has wave and flux attributes)
+        E_BV: E(B-V) for correction
+        R_V: default to 3.1 values
+    Output:
+        spectrum1d object with the dust corrected flux
+    '''
+    A_V = R_V*E_BV
+    new_flux = extinction.apply(-extinction.ccm89(spec.wave, A_V, R_V), spec.flux)    
+    return spectrum1d(spec.wave, new_flux)   
     
 ############################
 #Tests
