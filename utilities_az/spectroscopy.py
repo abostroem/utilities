@@ -15,9 +15,6 @@ class spectrum1d(object):
         self.flux = flux
         self.error = error
         
-    
-
-
 def degrade_resolution(flux, disp_in, disp_out):
     '''
     Convolve spectrum with a 1D gaussian kernel to degrade dispersion from disp_in to disp_out
@@ -104,7 +101,7 @@ def apply_redshift(wl, redshift, redden=False):
         new_wl = wl * (1+redshift)
     return new_wl
     
-def scale_spectra(spec1, spec2, wlmin = None, wlmax=None):
+def scale_spectra(spec1, spec2, wlmin = None, wlmax=None, scale_factor=False):
     '''
     Scale spec1 to spec2 by integrating from wlmin to wlmax and using
     the area as a scaling factor
@@ -114,6 +111,7 @@ def scale_spectra(spec1, spec2, wlmin = None, wlmax=None):
         wlmax: longest wavelength to be used in scaling
     Outputs:
         spec1: spec1d object with scaled flux
+        scale_factor (optional): if scale_factor = True, then the multiplicative factor is returned
     '''    
     if wlmin is None:
         wlmin = min(spec1.wave.min(), spec2.wave.min())
@@ -126,7 +124,10 @@ def scale_spectra(spec1, spec2, wlmin = None, wlmax=None):
     area1 = np.sum(spec1.flux[windx_1])*delta_wl1
     area2 = np.sum(spec2.flux[windx_2])*delta_wl2
     spec1 = spectrum1d(spec1.wave, spec1.flux/area1*area2)
-    return spec1
+    if scale_factor is True:
+        return spec1, area2/area1
+    else:
+        return spec1
     
 def correct_for_galactic_extinction(spec, E_BV, R_V=3.1):
     '''
@@ -141,7 +142,7 @@ def correct_for_galactic_extinction(spec, E_BV, R_V=3.1):
     A_V = R_V*E_BV
     new_flux = extinction.apply(-extinction.ccm89(spec.wave, A_V, R_V), spec.flux)    
     return spectrum1d(spec.wave, new_flux)   
-    
+
 ############################
 #Tests
 ############################
@@ -161,3 +162,48 @@ def test_premade_bins():
     binned_array1 = bin_data(test_arr, bin_size = 10)
     binned_array3 = bin_data(test_arr, bins = bins)
     assert (binned_array3 == binned_array1).all(), 'bins not functioning as intended'
+    
+def test_scale_spectra():
+    spec1 = spec.spectrum1d(np.arange(6000, 8000, 1), np.ones(2000))
+    spec2 = spec.spectrum1d(np.arange(6000, 8000, 1), np.ones(2000)*4.2)
+    new_spec, scale_factor = spec.scale_spectra(spec1, spec2, scale_factor=True)
+    plt.figure()
+    plt.plot(spec1.wave, spec1.flux, ':', label='original flux')
+    plt.plot(spec1.wave, spec1.flux*scale_factor, label='scaled flux')
+    plt.plot(spec2.wave, spec2.flux, '--', label='flux to scale to')
+    plt.legend(loc='best')
+    assert np.isclose(scale_factor,4.2), 'scale_factor={}'.format(scale_factor)
+    
+def test_scale_spectra2():
+    flux1 = np.ones(2000)
+    flux1[1000:1500]+=1
+    flux2 = np.ones(2000)+4.2
+    flux2[1000:1500]+=3
+    spec1 = spec.spectrum1d(np.arange(6000, 8000, 1), flux1)
+    spec2 = spec.spectrum1d(np.arange(6000, 8000, 1), flux2)
+    new_spec, scale_factor = spec.scale_spectra(spec1, spec2, scale_factor=True, wlmin=7000, wlmax=7500)
+    plt.figure()
+    plt.plot(spec1.wave, spec1.flux, ':', label='original flux')
+    plt.plot(spec1.wave, spec1.flux*scale_factor, label='scaled flux')
+    plt.plot(spec2.wave, spec2.flux, '--', label='flux to scale to')
+    plt.legend(loc='best')
+    assert np.isclose(scale_factor,4.101098901098902), 'scale_factor={}'.format(scale_factor)
+
+
+def test_scale_spectra3():
+    flux1 = np.ones(2000)
+    flux1[1000:1500]+=1
+    flux2 = np.ones(2000)+4.2
+    flux2[1000:1500]+=3
+    spec1 = spec.spectrum1d(np.arange(6000, 8000, 1), flux1)
+    spec2 = spec.spectrum1d(np.arange(6000, 8000, 1), flux2)
+    new_spec, scale_factor = spec.scale_spectra(spec1, spec2, scale_factor=True, wlmin=7200, wlmax=7250)
+    plt.figure()
+    plt.plot(spec1.wave, spec1.flux, ':', label='original flux')
+    plt.plot(spec1.wave, spec1.flux*scale_factor, label='scaled flux')
+    plt.plot(spec2.wave, spec2.flux, '--', label='flux to scale to')
+    plt.legend(loc='best')
+    assert np.isclose(scale_factor,4.101098901098902, rtol=0.1), 'scale_factor={}'.format(scale_factor)
+    
+
+
