@@ -11,9 +11,9 @@ import extinction
 #spectrum1d = namedtuple("spectrum1d", ['wave', 'flux'])
 class spectrum1d(object):
     def __init__(self, wave, flux, error=None):
-        self.wave = wave
-        self.flux = flux
-        self.error = error
+        self.wave = np.float_(wave)
+        self.flux = np.float_(flux)
+        self.error = np.float_(error)
         
 def degrade_resolution(flux, disp_in, disp_out):
     '''
