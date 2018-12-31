@@ -18,25 +18,35 @@ from . import connect_to_sndavis
 
 
 class LightCurve(object):
-    '''
-    Caveats:
-    * Assume plateau length is 100 days unless otherwise specified
-    * Assume change in magnitude from peak to bottom of drop at end of plateau is 5.5 mag
-    * I'm calculating the age from the peak not from explosion
-    '''
-    def __init__(self, peak_date, peak_mag, plateau_length = 100, plateau_delta_mag = 5.5):
-        self.peak_time = Time(peak_date, format='iso')
-        self.peak_mag = peak_mag
-        self.plateau_length = TimeDelta(plateau_length*U.day)
-        self.plateau_delta_mag = plateau_delta_mag
-    def calc_mag_at_first_obs(self, first_obs_date):
-        self.drop_date = self.peak_time+self.plateau_length
-        self.cobalt_decay_delta_t = Time(first_obs_date, format='iso') - self.drop_date
-        self.cobalt_decay_delta_mag = self.cobalt_decay_delta_t/(100.*U.day)
-        self.mag_at_first_obs = self.peak_mag + self.plateau_delta_mag + self.cobalt_decay_delta_mag
-        self.age_at_first_obs = self.plateau_length + self.cobalt_decay_delta_t
-        print('Mag on {} = {}'.format(first_obs_date, self.mag_at_first_obs))
-        print('Age on {} = {}'.format(first_obs_date, self.age_at_first_obs))
+    def __init__(self, name, ra, dec, type=None, dist_mod=None, dist_mod_err=None, 
+                       ebv_mw=None, ebv_mw_err=None, ebv_host=None, ebv_host_err=None, 
+                       jdexpl=None, jdexplerr=None):
+        self.name=name
+        self.ra = result['ra0']
+        self.dec = result['dec0']
+        self.type = result['sntype'] #TODO - update this to look at the type table and make a human readable type
+        self.dist_mod = result['mu']
+        self.dist_mod_err = result['muerr']
+        self.ebv_mw = result['ebvg']
+        self.ebv_mw_err = result['ebvgerr']
+        self.ebv_host = result['ebvi'] 
+        self.ebv_host_err = result['ebvierr']
+        self.jdexpl = result['jdexpl']
+        self.jdexpl_err = result['jdexplerr']
+        self.phase = {}
+        self.jd = {}
+        self.apparent_mag = {}
+        self.apparent_mag_err = {}
+        self.abs_mag = {}
+        self.abs_mag_err = {}
+    def add_photometry(filter, jd, phot, phot_err):
+        self.jd[filter] = jd
+        self.apparent_mag[filter] = phot
+        self.apparent_mag_err[filter] = phot_err
+        if self.jdexpl:
+            self.phase[filter] = self.jd[filter] -self.jdexpl
+        
+        
         
 def get_cenwave(band):
     band_dict = define_filters()
@@ -238,16 +248,42 @@ def get_cenwave(ifilter):
     cenwave = bandpar_dict[ifilter][2]
     return cenwave
 
-def scale_spectra_quba(snname, filename, filter_dir=None, date_kw='date-obs', max_sep=7, header_date=False):
+def scale_spectra_quba(snname, filename, filter_dir=None, date_kw='date-obs', max_sep=7, 
+                        header_date=False, sndavis=True, lightcurve=None):
     '''
     You must be connected to dark
     filter_dir should be /Users/bostroem/Dropbox/DLT40_all/script/scalespectra/filters/
     if header_date is True, then date_kw contains the keyword to read from the header.
     if header_date is False, then the date_kw should be treated as the date of the observation
+    
+    Inputs:
+    ---------
+    snname: str
+        name of supernova - will be used to find in SNDAVIS database is sndavis is True
+    filename: str
+        name of spectrum file. 
+    filter_dir: str
+        location of information filter throughput
+    date_kw: str
+        if header_date is True: name of keyword in fits file to use to find date
+        if header_date is False: date of observation
+    max_set: float
+        number of days that can separate photometry point and date of spectrum
+    header_date: bool
+        controls whether spectrum date is read from header
+    sndavis: bool
+        if True: use SNDAVIS database to get light curve
+        if False: pass a light curve into the light curve keyword
+    lightcurve: LightCurve object
+        an object that has a jd attribute and an app_mag attribute that are dictionaries with filters as keys
+    
+    
+    
     '''
     import qubascalespectra
-    lightcurve = LightCurve2(snname)
-    lightcurve.get_photometry()
+    if sndavis:
+        lightcurve = LightCurve2(snname)
+        lightcurve.get_photometry()
     if header_date is True:
         date_obs = Time(fits.getval(filename, date_kw, 0))
     else:
