@@ -13,8 +13,9 @@ from astropy.io import fits
 import extinction
 import pymysql
 #Local
-from .define_filters import define_filters
+from .define_filters import define_filters, get_cenwave
 from . import connect_to_sndavis
+from . import spectroscopy as spec
 
 
 class LightCurve(object):
@@ -39,39 +40,46 @@ class LightCurve(object):
         self.apparent_mag_err = {}
         self.abs_mag = {}
         self.abs_mag_err = {}
+        self.A_host = {}
+        self.A_err_host = {}
+        self.A_mw = {}
+        self.A_err_mw = {}
     def add_photometry(filter, jd, phot, phot_err):
         self.jd[filter] = jd
         self.apparent_mag[filter] = phot
         self.apparent_mag_err[filter] = phot_err
         if self.jdexpl:
             self.phase[filter] = self.jd[filter] -self.jdexpl
-        
-        
-        
-def get_cenwave(band):
-    band_dict = define_filters()
-    if band in band_dict.keys():
-        band_info = band_dict[band]
-        cenwave = band_info[2]
-        return cenwave
-    else:
-        print('band {} not in band dict keys: {}'.format(band, band_dict.keys()))
-        raise 'KeyError' #TODO: figure out why this doesn't work
 
-def calc_abs_mag(app_mag, dist_mod, mw_ebv, band, host_ebv=0, dist_mod_err=0, app_mag_err=0):
-    R_v = 3.1
-    A_v_mw = R_v*mw_ebv
-    A_v_host = R_v* host_ebv
-    cenwave = np.array([float(get_cenwave(band))])
-    A_band_mw = extinction.ccm89(cenwave, A_v_mw, R_v)
-    A_band_host = extinction.ccm89(cenwave, A_v_host, R_v)
-    abs_mag = app_mag - dist_mod - A_band_mw - A_band_host
-    abs_mag_err = np.sqrt(app_mag_err**2 + dist_mod_err**2) #check reddening error
+def calc_abs_mag(app_mag, dist_mod, A_mw, A_host=0, dist_mod_err=0, app_mag_err=0, A_err_mw=0, A_err_host=0):
+    '''
+    Calculate the absolute magnitude in a given filter given the apparent magnitude, distance modulus, and extinction
+    app_mag: arr or float
+        array of apparent magnitudes
+    dist_mod: float
+        distance modulus
+    A_mw: float
+        Magnitudes of extinction in filter due to the Milky Way
+    A_host: float
+        Magnitudes of extinction in filter due to host; default=0
+    dist_mod_err: float
+        error in the distance modulus; default=0
+    app_mag_err: arr or float
+        array of error values for apparent magnitude (should be same size as app_mag); default=0
+    A_err_mw: float
+        error on A_mw (in magnitudes); default=0
+    A_err_host: float
+        err on A_host (in magnitudes); default=0
+    '''
+    abs_mag = app_mag - dist_mod - A_mw - A_host
+    abs_mag_err = np.sqrt(app_mag_err**2 + dist_mod_err**2 + A_err_mw**2 + A_err_host**2)
     return abs_mag, abs_mag_err
 
 class LightCurve2(object):
     '''
     Retrieve information from sndavis database
+    
+    Absolute magnitudes are corrected for extinction, apparent magnitude is not
     '''
     def __init__(self, name):
         self.name=name
@@ -101,6 +109,10 @@ class LightCurve2(object):
             self.slopes = {'s1':{}, 's2':{}, 's50':{}, 'tail':{}, 
                             's1_range':{}, 's2_range':{}, 's50_range':{}, 'tail_range':{},
                             's1_err':{}, 's2_err':{}, 's50_err':{}, 'tail_err':{}}
+            self.A_host = {}
+            self.A_err_host = {}
+            self.A_mw = {}
+            self.A_err_mw = {}
         else:
             print('SN {} not found in database'.format(self.name))
             #TODO add an absolute magnitude error
@@ -126,6 +138,8 @@ class LightCurve2(object):
         else: #multiple filters
             bands = band
         for ifilter in bands:   
+            A_host_band, A_err_host_band = spec.calc_extinction(self.ebv_host, ifilter)
+            A_mw_band, A_err_mw_band = spec.calc_extinction(self.ebv_mw, ifilter)
             self.cursor.execute("SELECT jd, mag, magerr FROM photometry WHERE targetid={} AND filter=BINARY('{}')".format(self.id, ifilter))
             results = self.cursor.fetchall()
             jd = []
@@ -139,11 +153,16 @@ class LightCurve2(object):
             self.apparent_mag[ifilter] = np.array(mag)
             self.apparent_mag_err[ifilter] = np.array(mag_err)
             self.phase[ifilter] = self.jd[ifilter] - self.jdexpl
+            self.A_host[ifilter] = A_host_band
+            self.A_err_host[ifilter] = A_err_host_band
+            self.A_mw[ifilter] = A_mw_band
+            self.A_err_mw[ifilter] = A_err_mw_band
             
     def get_abs_mag(self, band='all'):
         '''
         Calcualte absolute magnitude
         '''
+        print('Calculating Absolute Magntidue with Extinction')
         if band == 'all':
             bands = self.apparent_mag.keys()
         elif len(band)==1:
@@ -156,17 +175,18 @@ class LightCurve2(object):
             if self.ebv_host is None:
                 self.abs_mag[iband], self.abs_mag_err[iband] = calc_abs_mag(self.apparent_mag[iband], 
                                                    self.dist_mod, 
-                                                   self.ebv_mw, iband, 
+                                                   self.A_mw[iband], 
                                                    app_mag_err=self.apparent_mag_err[iband], 
                                                    dist_mod_err=self.dist_mod_err)
             else:
                 self.abs_mag[iband], self.abs_mag_err[iband] = calc_abs_mag(self.apparent_mag[iband], 
                                                                             self.dist_mod, 
-                                                                            self.ebv_mw, 
-                                                                            iband, 
-                                                                            host_ebv=self.ebv_host,
+                                                                            self.A_mw[iband], 
+                                                                            A_host=self.A_host[iband],
                                                                             app_mag_err=self.apparent_mag_err[iband], 
-                                                                            dist_mod_err=self.dist_mod_err)
+                                                                            dist_mod_err=self.dist_mod_err,
+                                                                            A_err_mw=self.A_err_mw[iband],
+                                                                            A_err_host=self.A_err_host[iband])
     
     def get_slope(self,slope_type, band='V'):
         '''
@@ -249,7 +269,7 @@ def get_cenwave(ifilter):
     return cenwave
 
 def scale_spectra_quba(snname, filename, filter_dir=None, date_kw='date-obs', max_sep=7, 
-                        header_date=False, sndavis=True, lightcurve=None):
+                        header_date=False, sndavis=True, lightcurve=None, verbose=False):
     '''
     You must be connected to dark
     filter_dir should be /Users/bostroem/Dropbox/DLT40_all/script/scalespectra/filters/
@@ -300,6 +320,8 @@ def scale_spectra_quba(snname, filename, filter_dir=None, date_kw='date-obs', ma
                     band=band+ifilter
                     mphot.append(mag)
     if len(mphot) > 1:
+        if verbose:
+            print('bands: {}'.format(band))
         qubascalespectra.scale_spectrum(filename, band, mphot, filter_dir)
     else:
         print('WARNING: no photometry within {} days of observation date ({})'.format(max_sep, date_obs))
