@@ -32,3 +32,13 @@ def define_filters():
     bandpar['N']=[0.,60000.,102000,0.,1.23e-13] # ASIAGO PHOTOMETRIC DATABASE
     
     return bandpar
+
+def get_cenwave(band):
+    band_dict = define_filters()
+    if band in band_dict.keys():
+        band_info = band_dict[band]
+        cenwave = band_info[2]
+        return cenwave
+    else:
+        print('band {} not in band dict keys: {}'.format(band, band_dict.keys()))
+        raise 'KeyError' #TODO: figure out why this doesn't work
