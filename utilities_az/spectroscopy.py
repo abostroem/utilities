@@ -6,6 +6,8 @@ import math
 
 import extinction
 
+from .define_filters import define_filters, get_cenwave
+
 
 #Like a light weight class with attributes wavelength and flux
 #spectrum1d = namedtuple("spectrum1d", ['wave', 'flux'])
@@ -142,6 +144,28 @@ def correct_for_galactic_extinction(spec, E_BV, R_V=3.1):
     A_V = R_V*E_BV
     new_flux = extinction.apply(-extinction.ccm89(spec.wave, A_V, R_V), spec.flux)    
     return spectrum1d(spec.wave, new_flux)   
+    
+def calc_extinction(E_BV, band, Rv=3.1, E_BV_err=0):
+    '''
+    Calculate extinction using the Cardelli law
+    E_BV: float
+        E(B-V) value
+    band: str
+        filter corresponding to filter in define_filters dictionary
+    Rv: float
+        R(V) set to 3.1 by default
+    E_BV_err: float
+        1 sigma error in E(B-V), set to 0 by default
+    '''
+    Av = Rv*E_BV
+    Av_err = Rv**2 * E_BV_err**2
+    cenwave = np.array([float(get_cenwave(band))])
+    A_band = extinction.ccm89(cenwave, Av, Rv)
+    if Av == 0:
+        A_band_err = 0.0
+    else:
+        A_band_err = np.sqrt(Av_err * A_band/Av)
+    return A_band, A_band_err
 
 ############################
 #Tests
