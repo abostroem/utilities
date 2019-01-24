@@ -223,13 +223,49 @@ def get_closest_photometry(date_obs, jd, phot_mag):
         closest_mag: float
             the closest magnitude to the date_obs given
         date_sep: float
-            the difference in days between the observation and the 
+            the difference in days between the observation and the closest photometric point
     '''
     date_indx = np.argmin(np.abs(jd - date_obs.jd))
     closest_mag = phot_mag[date_indx]
     date_sep = (jd - date_obs.jd)[date_indx]
     return closest_mag, date_sep
 
+def get_interpolated_photometry(date_obs, jd, phot_mag):
+    '''
+    Interpolate between photometric points in a given band to get the value at a single date
+        Inputs:
+    ----------
+        date_obs: Time object
+            astropy Time object of the observervation date that you want to find the closest observations to
+        jd: list
+            list of photometric observations in JD
+        phot_mag: list
+            list of magnitudes corresponding to the jd list for a single filter
+        
+    Returns:
+    -----------
+        interp_mag: float
+            the magnitude interpolated to the date_obs given
+        date_sep: tup
+            the difference in days between the observation and the two points used in the interpolation
+    '''
+
+    before_indx = jd < date_obs.jd
+    after_indx = jd >= date_obs.jd
+    if (before_indx==False).all():
+        before_sep = None
+    else:
+        before_sep = Time(jd[before_indx][-1], format='jd') - date_obs
+    if (after_indx == False).all():
+        after_sep = None
+    else:
+        after_sep =  Time(jd[after_indx][0],   format='jd') - date_obs
+    if (before_sep is not None) and (after_sep is not None):
+        interp_mag = np.interp(date_obs.jd, jd, phot_mag)
+    else:
+        interp_mag = None
+    return interp_mag, (before_sep, after_sep)
+    
 def convert_mag_to_flux(phot_mag, ifilter):
     '''
     Converts magnitude units to flux units (ergs/cm^2/s/A)
@@ -301,7 +337,7 @@ def scale_spectra_quba(snname, filename, filter_dir=None, date_kw='date-obs', ma
     
     '''
     import qubascalespectra
-    if sndavis:
+    if lightcurve is None:
         lightcurve = LightCurve2(snname)
         lightcurve.get_photometry()
     if header_date is True:
@@ -315,13 +351,22 @@ def scale_spectra_quba(snname, filename, filter_dir=None, date_kw='date-obs', ma
         if len(ifilter) == 1: #avoid swift filters
             cenwave = get_cenwave(ifilter)
             if (cenwave > 3500):
-                mag, date_sep = get_closest_photometry(date_obs, lightcurve.jd[ifilter], lightcurve.apparent_mag[ifilter])
-                if (date_sep <= max_sep):
+                mag, date_sep = get_interpolated_photometry(date_obs, lightcurve.jd[ifilter], lightcurve.apparent_mag[ifilter])
+                if mag is not None:
+                    print('using {}={} interpolated to {} from {} and {}'.format(ifilter, mag, date_obs.iso,
+                                                                               (date_sep[0]+date_obs).iso,
+                                                                               (date_sep[1]+date_obs).iso))
                     band=band+ifilter
                     mphot.append(mag)
+                else:
+                    if date_sep[0] is None:
+                        print('No data for {} before {}'.format(ifilter, date_obs))
+                    if date_sep[1] is None:
+                        print('No data for {} after {}'.format(ifilter, date_obs))
+
     if len(mphot) > 1:
         if verbose:
-            print('bands: {}'.format(band))
+            print('bands: {}, photometry: {}'.format(band, mphot))
         qubascalespectra.scale_spectrum(filename, band, mphot, filter_dir)
     else:
         print('WARNING: no photometry within {} days of observation date ({})'.format(max_sep, date_obs))
