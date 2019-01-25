@@ -128,6 +128,7 @@ class LightCurve2(object):
         '''
         Get apparent magnitude of a specific band
         '''
+        filter_dict = define_filters()
         if band == 'all':
             self.cursor.execute("SELECT DISTINCT BINARY(filter) FROM photometry WHERE targetid={}".format(self.id))
             results = self.cursor.fetchall()
@@ -138,8 +139,15 @@ class LightCurve2(object):
         else: #multiple filters
             bands = band
         for ifilter in bands:   
-            A_host_band, A_err_host_band = spec.calc_extinction(self.ebv_host, ifilter)
-            A_mw_band, A_err_mw_band = spec.calc_extinction(self.ebv_mw, ifilter)
+            if ifilter in filter_dict.keys():
+                A_host_band, A_err_host_band = spec.calc_extinction(self.ebv_host, ifilter)
+                A_mw_band, A_err_mw_band = spec.calc_extinction(self.ebv_mw, ifilter)
+            else:
+                print('Could not calculate extinction for {} because not in filter dictionary'.format(ifilter))
+                A_host_band = 0
+                A_err_host_band = 0
+                A_mw_band = 0
+                A_err_mw_band = 0
             self.cursor.execute("SELECT jd, mag, magerr FROM photometry WHERE targetid={} AND filter=BINARY('{}')".format(self.id, ifilter))
             results = self.cursor.fetchall()
             jd = []
