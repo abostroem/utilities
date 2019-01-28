@@ -113,6 +113,12 @@ class LightCurve2(object):
             self.A_err_host = {}
             self.A_mw = {}
             self.A_err_mw = {}
+            self.jd_limit = {}
+            self.phase_limit = {}
+            self.apparent_mag_limit = {}
+            self.apparent_mag_err_limit = {}
+            self.abs_mag_limit = {}
+            self.abs_mag_err_limit = {}
         else:
             print('SN {} not found in database'.format(self.name))
             #TODO add an absolute magnitude error
@@ -128,7 +134,7 @@ class LightCurve2(object):
         '''
         Get apparent magnitude of a specific band
         '''
-        filter_dict = define_filters()
+        filter_dict =  define_filters()
         if band == 'all':
             self.cursor.execute("SELECT DISTINCT BINARY(filter) FROM photometry WHERE targetid={}".format(self.id))
             results = self.cursor.fetchall()
@@ -148,15 +154,23 @@ class LightCurve2(object):
                 A_err_host_band = 0
                 A_mw_band = 0
                 A_err_mw_band = 0
-            self.cursor.execute("SELECT jd, mag, magerr FROM photometry WHERE targetid={} AND filter=BINARY('{}')".format(self.id, ifilter))
+            self.cursor.execute("SELECT jd, mag, magerr, source, datatype FROM photometry WHERE targetid={} AND filter=BINARY('{}')".format(self.id, ifilter))
             results = self.cursor.fetchall()
             jd = []
             mag = []
             mag_err = []
+            jd_limit = []
+            mag_limit = []
+            mag_err_limit = []
             for irow in results:
-                jd.append(float(irow['jd']))
-                mag.append(float(irow['mag']))
-                mag_err.append(float(irow['magerr']))
+                if (irow['source'] < 0) or (irow['datatype'] < 0): #photometry represents a limit
+                    jd_limit.append(float(irow['jd']))
+                    mag_limit.append(float(irow['mag']))
+                    mag_err_limit.append(float(irow['magerr']))
+                else:
+                    jd.append(float(irow['jd']))
+                    mag.append(float(irow['mag']))
+                    mag_err.append(float(irow['magerr']))
             self.jd[ifilter] = np.array(jd)
             self.apparent_mag[ifilter] = np.array(mag)
             self.apparent_mag_err[ifilter] = np.array(mag_err)
@@ -165,6 +179,11 @@ class LightCurve2(object):
             self.A_err_host[ifilter] = A_err_host_band
             self.A_mw[ifilter] = A_mw_band
             self.A_err_mw[ifilter] = A_err_mw_band
+            self.jd_limit[ifilter] = np.array(jd_limit)
+            self.apparent_mag_limit[ifilter] = np.array(mag_limit)
+            self.apparent_mag_err_limit[ifilter] = np.array(mag_err_limit)
+            self.phase_limit[ifilter] = self.jd_limit[ifilter] - self.jdexpl
+
             
     def get_abs_mag(self, band='all'):
         '''
@@ -186,12 +205,25 @@ class LightCurve2(object):
                                                    self.A_mw[iband], 
                                                    app_mag_err=self.apparent_mag_err[iband], 
                                                    dist_mod_err=self.dist_mod_err)
+                self.abs_mag_limit[iband], self.abs_mag_err_limit[iband] = calc_abs_mag(self.apparent_mag_limit[iband], 
+                                                   self.dist_mod, 
+                                                   self.A_mw[iband], 
+                                                   app_mag_err=self.apparent_mag_err_limit[iband], 
+                                                   dist_mod_err=self.dist_mod_err)
             else:
                 self.abs_mag[iband], self.abs_mag_err[iband] = calc_abs_mag(self.apparent_mag[iband], 
                                                                             self.dist_mod, 
                                                                             self.A_mw[iband], 
                                                                             A_host=self.A_host[iband],
                                                                             app_mag_err=self.apparent_mag_err[iband], 
+                                                                            dist_mod_err=self.dist_mod_err,
+                                                                            A_err_mw=self.A_err_mw[iband],
+                                                                            A_err_host=self.A_err_host[iband])
+                self.abs_mag_limit[iband], self.abs_mag_err_limit[iband] = calc_abs_mag(self.apparent_mag_limit[iband], 
+                                                                            self.dist_mod, 
+                                                                            self.A_mw[iband], 
+                                                                            A_host=self.A_host[iband],
+                                                                            app_mag_err=self.apparent_mag_err_limit[iband], 
                                                                             dist_mod_err=self.dist_mod_err,
                                                                             A_err_mw=self.A_err_mw[iband],
                                                                             A_err_host=self.A_err_host[iband])
