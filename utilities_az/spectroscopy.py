@@ -13,6 +13,7 @@ from .define_filters import define_filters, get_cenwave
 #spectrum1d = namedtuple("spectrum1d", ['wave', 'flux'])
 class spectrum1d(object):
     def __init__(self, wave, flux, error=None):
+        #Could be np.asarray, but change fit_spectral_lines.py
         self.wave = np.float_(wave)
         self.flux = np.float_(flux)
         self.error = np.float_(error)
@@ -69,7 +70,10 @@ def bin_data(data_arr, bin_size=None, bins=[], sum=False, median=False):
         
 def calc_wavelength(header, pixels):
     if ('CTYPE1' in header.keys()) and (len(header['CTYPE1'])>1):
-        assert header['CTYPE1'] == 'LINEAR', 'Attempting to apply a linear solution to non-linear parameters'
+        if header['CTYPE1'] != 'LINEAR': 
+            keep_going = input('Attempting to apply a linear solution to non-linear parameters. Continue anyways? (y), n ')
+            if keep_going == 'n':
+                sys.exit()
     else:
         print('WARNING: No solution type specified, assuming linear')
     CRVAL1 = header['CRVAL1']
@@ -77,10 +81,14 @@ def calc_wavelength(header, pixels):
         CRPIX1 = header['CRPIX1']
     else:
         CRPIX1 = 0
-    try:
+    if 'CD1_1' in header.keys():
         CD1_1 = header['CD1_1']
-    except KeyError:
+    elif 'CDELT1' in header.keys():
         CD1_1 = header['CDELT1']
+    elif 'PC1_1' in header.keys():
+        CD1_1 = header['PC1_1']
+    else:
+        sys.exit('Could not identify linear wavelength term (tried CD1_1, CDELT1, PC1_1)')
     
     wavelength = CRVAL1 + CD1_1*(pixels - CRPIX1)
     return wavelength
@@ -116,9 +124,9 @@ def scale_spectra(spec1, spec2, wlmin = None, wlmax=None, scale_factor=False):
         scale_factor (optional): if scale_factor = True, then the multiplicative factor is returned
     '''    
     if wlmin is None:
-        wlmin = min(spec1.wave.min(), spec2.wave.min())
+        wlmin = max(spec1.wave.min(), spec2.wave.min())
     if wlmax is None:
-        wlmax = max(spec1.wave.max(), spec2.wave.max())
+        wlmax = min(spec1.wave.max(), spec2.wave.max())
     windx_1 = (spec1.wave >= wlmin) &  (spec1.wave <= wlmax)
     windx_2 = (spec2.wave >= wlmin) & (spec2.wave <= wlmax)
     delta_wl1 = np.mean(spec1.wave[1:] - spec1.wave[:-1])
