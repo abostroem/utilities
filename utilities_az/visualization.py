@@ -13,7 +13,10 @@ def zscale(img):
     
 def make_color_wheel(obj_list, cmap='gist_rainbow'):
     cmap = mpl.cm.get_cmap(cmap)
-    obj_color_list = cmap(np.linspace(0, 1, len(obj_list)))
+    if isinstance(obj_list, (list, np.ndarray)):
+        obj_color_list = cmap(np.linspace(0, 1, len(obj_list)))
+    elif isinstance(obj_list, (float,int)):
+        obj_color_list = cmap(np.linspace(0, 1, obj_list))
     return obj_color_list
     
     
