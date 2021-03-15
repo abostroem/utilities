@@ -43,6 +43,9 @@ def define_filters():
 
 def get_cenwave(band):
     band_dict = define_filters()
+    if band in ["u'", "g'", "r'", "i'", "z'", "y'"]:
+        print("Assuming {band} = {new_band} stripping ' from {band}".format(band=band, new_band=band.strip("'")))
+        band = band.strip("'")
     if band in band_dict.keys():
         band_info = band_dict[band]
         cenwave = band_info[2]
