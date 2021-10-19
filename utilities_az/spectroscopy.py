@@ -2,6 +2,7 @@ from collections import namedtuple
 
 from astropy import convolution
 import numpy as np
+from scipy import integrate
 import math
 
 import extinction
@@ -129,10 +130,8 @@ def scale_spectra(spec1, spec2, wlmin = None, wlmax=None, scale_factor=False):
         wlmax = min(spec1.wave.max(), spec2.wave.max())
     windx_1 = (spec1.wave >= wlmin) &  (spec1.wave <= wlmax)
     windx_2 = (spec2.wave >= wlmin) & (spec2.wave <= wlmax)
-    delta_wl1 = np.mean(spec1.wave[1:] - spec1.wave[:-1])
-    delta_wl2 = np.mean(spec2.wave[1:] - spec2.wave[:-1])
-    area1 = np.sum(spec1.flux[windx_1])*delta_wl1
-    area2 = np.sum(spec2.flux[windx_2])*delta_wl2
+    area1 = integrate.trapezoid(spec1.flux[windx_1], x=spec1.wave[windx_1])
+    area2 = integrate.trapezoid(spec2.flux[windx_2], x=spec2.wave[windx_2])
     spec1 = spectrum1d(spec1.wave, spec1.flux/area1*area2)
     if scale_factor is True:
         return spec1, area2/area1
