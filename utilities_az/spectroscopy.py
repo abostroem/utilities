@@ -132,13 +132,16 @@ def scale_spectra(spec1, spec2, wlmin = None, wlmax=None, scale_factor=False):
     windx_2 = (spec2.wave >= wlmin) & (spec2.wave <= wlmax)
     area1 = integrate.trapezoid(spec1.flux[windx_1], x=spec1.wave[windx_1])
     area2 = integrate.trapezoid(spec2.flux[windx_2], x=spec2.wave[windx_2])
-    spec1 = spectrum1d(spec1.wave, spec1.flux/area1*area2)
+    if spec1.error is not None:
+        spec1 = spectrum1d(spec1.wave, spec1.flux/area1*area2, spec1.error/area1*area2)
+    else:
+        spec1 = spectrum1d(spec1.wave, spec1.flux/area1*area2)
     if scale_factor is True:
         return spec1, area2/area1
     else:
         return spec1
     
-def correct_for_galactic_extinction(spec, E_BV, R_V=3.1):
+def correct_for_galactic_extinction(spec, E_BV, R_V=3.1, deredden=True):
     '''
     Correct flux for galactic (Milky Way) extinction using a Cardelli law
     Inputs:
@@ -149,7 +152,10 @@ def correct_for_galactic_extinction(spec, E_BV, R_V=3.1):
         spectrum1d object with the dust corrected flux
     '''
     A_V = R_V*E_BV
-    new_flux = extinction.apply(-extinction.ccm89(spec.wave, A_V, R_V), spec.flux)    
+    if deredden:
+        new_flux = extinction.remove(extinction.ccm89(spec.wave, A_V, R_V), spec.flux)
+    else:
+        new_flux = extinction.apply(extinction.ccm89(spec.wave, A_V, R_V), spec.flux)
     return spectrum1d(spec.wave, new_flux)   
     
 def calc_extinction(E_BV, band, Rv=3.1, E_BV_err=0):
